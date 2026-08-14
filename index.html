@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ROAD TO NFL</title>
+<style>html,body{margin:0;min-height:100%;background:#07090d;color:#fff;font-family:system-ui,Arial,sans-serif}#loading{min-height:100vh;display:grid;place-items:center;font-weight:800;letter-spacing:.5px}</style>
+</head>
+<body>
+<div id="loading">Chargement de ROAD TO NFL… 🏈</div>
+<script>
+(async()=>{
+  const source='https://raw.githubusercontent.com/jujutsujojo11-web/Road-to-NFL/main/ROAD%20TO%20NFL';
+  try{
+    const r=await fetch(source,{cache:'no-store'});
+    if(!r.ok) throw new Error('Source indisponible ('+r.status+')');
+    const html=await r.text();
+    document.open();
+    document.write(html);
+    document.close();
+  }catch(e){
+    document.getElementById('loading').innerHTML='<div style="text-align:center;padding:24px"><h2>ROAD TO NFL</h2><p>Impossible de charger le jeu pour le moment.</p><small>'+e.message+'</small></div>';
+  }
+})();
+</script>
+</body>
+</html>
