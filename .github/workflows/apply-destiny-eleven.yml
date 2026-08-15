@@ -1,0 +1,174 @@
+name: Apply Destiny Eleven career expansion
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-destiny-eleven.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inject Destiny Eleven career system
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = '<!-- DESTINY_ELEVEN_EXPANSION -->'
+          if marker in s:
+              print('Expansion already installed')
+              raise SystemExit(0)
+          injection = '''
+<script id="destiny-eleven-expansion">
+<!-- DESTINY_ELEVEN_EXPANSION -->
+(function(){
+  gameState.origin = gameState.origin || null;
+  gameState.fans = gameState.fans || 0;
+  gameState.rep = gameState.rep || 50;
+  gameState.coach = gameState.coach || 50;
+  gameState.prison = false;
+  gameState.careerEnded = false;
+  gameState.monthEventDone = false;
+
+  const ORIGINS = {
+    '1': {name:'Quartier difficile', bonus:'Tu as appris à te battre et à survivre dans un environnement compliqué.', ovr:1, rep:3},
+    '2': {name:'Famille aisée', bonus:'Ta famille peut t’aider financièrement et professionnellement.', money:25000, rep:2},
+    '3': {name:'Famille de footballeurs', bonus:'Le football fait partie de ton quotidien depuis ton enfance.', ovr:2, coach:5},
+    '4': {name:'Famille modeste', bonus:'Tu as grandi avec la faim de réussir et de changer la vie de ta famille.', ovr:1, rep:5}
+  };
+
+  const LIFE_EVENTS = [
+    {title:'🏙️ Le passé revient', desc:'Un ancien ami de ton quartier te contacte et te propose une affaire douteuse.', choices:['Refuser et protéger ma carrière','Accepter pour gagner de l’argent','Couper définitivement les ponts'], run:[
+      ()=>{gameState.rep+=2; return 'Tu refuses. Ta carrière reste propre.'},
+      ()=>{let gain=5000+Math.floor(Math.random()*10000); gameState.money+=gain; if(Math.random()<0.28){gameState.prison=true;gameState.careerEnded=true;return `Tu gagnes $${gain}, mais la police remonte jusqu’à toi. 🚔 Carrière terminée.`} return `Tu gagnes $${gain}, mais tu prends un gros risque.`},
+      ()=>{gameState.rep+=4; return 'Tu tournes la page. Ton ancien entourage disparaît de ta vie.'}
+    ]},
+    {title:'🚔 Contrôle de police', desc:'Après une soirée, la police te contrôle à la sortie d’un club.', choices:['Coopérer calmement','Prendre la fuite','Appeler ton agent'], run:[
+      ()=>{gameState.rep+=1; return 'Le contrôle se termine sans conséquence.'},
+      ()=>{if(Math.random()<0.22){gameState.prison=true;gameState.careerEnded=true;return 'Tu es arrêté après une course-poursuite. 🚔 Carrière terminée.'} gameState.rep-=6;return 'Tu échappes au pire, mais ton image prend un coup.'},
+      ()=>{gameState.rep+=2;return 'Ton agent arrive et règle la situation.'}
+    ]},
+    {title:'🩹 Douleur inquiétante', desc:'Une douleur apparaît pendant une séance importante.', choices:['Me faire examiner','Continuer malgré la douleur','Annuler la séance et récupérer'], run:[
+      ()=>{gameState.injured=true;return 'Les médecins demandent du repos. Tu rates quelques semaines.'},
+      ()=>{if(Math.random()<0.45){gameState.injured=true;gameState.ovr=Math.max(50,gameState.ovr-3);return 'La blessure s’aggrave. OVR -3.'} return 'Tu termines la séance sans blessure grave.'},
+      ()=>{gameState.energy=Math.min(100,gameState.energy+25);return 'Tu récupères intelligemment et évites la blessure.'}
+    ]},
+    {title:'📱 Tu deviens viral', desc:'Une vidéo de ton entraînement explose sur les réseaux.', choices:['Interagir avec les fans','Laisser ton agent gérer','Poster encore plus de contenu'], run:[
+      ()=>{gameState.fans+=2500;gameState.rep+=3;return '+2 500 fans et réputation +3.'},
+      ()=>{gameState.fans+=1000;gameState.money+=5000;return '+1 000 fans et $5 000 grâce à ton agent.'},
+      ()=>{gameState.fans+=6000;gameState.energy=Math.max(0,gameState.energy-5);if(Math.random()<0.12){gameState.rep-=5;return '+6 000 fans, mais une publication fait polémique.'}return '+6 000 fans. Ton audience explose.'}
+    ]},
+    {title:'💰 Offre de sponsor', desc:'Une marque te propose un contrat avant un match important.', choices:['Négocier durement','Accepter immédiatement','Refuser pour rester concentré'], run:[
+      ()=>{gameState.money+=30000;return 'Tu obtiens $30 000.'},
+      ()=>{gameState.money+=15000;return 'Tu signes pour $15 000.'},
+      ()=>{gameState.rep+=2;return 'Tu refuses et le coach apprécie ton sérieux.'}
+    ]},
+    {title:'🎙️ Interview piège', desc:'Un journaliste attaque ton niveau et cherche une réaction.', choices:['Répondre calmement','Répondre agressivement','Faire une blague'], run:[
+      ()=>{gameState.rep+=4;return 'Ta réponse mature impressionne.'},
+      ()=>{gameState.rep-=7;if(Math.random()<0.15){gameState.money+=10000;return 'Le clash devient viral : réputation -7, mais $10 000 de buzz.'}return 'La séquence devient virale pour les mauvaises raisons.'},
+      ()=>{gameState.fans+=1200;return '+1 200 fans. La blague plaît au public.'}
+    ]},
+    {title:'❤️ Relation sous pression', desc:'Ton/ta partenaire te reproche de ne jamais être disponible.', choices:['Passer du temps ensemble','Promettre de faire mieux','Ignorer le problème'], run:[
+      ()=>{if(gameState.partner) gameState.partner.relationship=Math.min(100,gameState.partner.relationship+15);gameState.energy=Math.max(0,gameState.energy-5);return 'La relation s’améliore.'},
+      ()=>{if(gameState.partner) gameState.partner.relationship=Math.min(100,gameState.partner.relationship+7);return 'Tu promets de changer.'},
+      ()=>{if(gameState.partner) gameState.partner.relationship=Math.max(0,gameState.partner.relationship-20);return 'La tension monte.'}
+    ]},
+    {title:'👥 Conflit dans le vestiaire', desc:'Un coéquipier te provoque après une séance.', choices:['Rester calme','Répondre','Se battre'], run:[
+      ()=>{gameState.coach+=4;return 'Le coach apprécie ton sang-froid.'},
+      ()=>{gameState.coach-=3;gameState.rep+=1;return 'Le conflit reste verbal.'},
+      ()=>{gameState.coach-=12;if(Math.random()<0.12){gameState.careerEnded=true;return 'La bagarre devient énorme et le club te licencie. Carrière terminée.'}return 'Tu prends une sanction du club.'}
+    ]},
+    {title:'🏆 Opportunité énorme', desc:'Un titulaire se blesse juste avant un match important.', choices:['Demander à commencer','Rester remplaçant','T’entraîner toute la nuit'], run:[
+      ()=>{gameState.ovr=Math.min(99,gameState.ovr+2);gameState.rep+=5;return 'Tu saisis ta chance : OVR +2, réputation +5.'},
+      ()=>{gameState.coach+=2;return 'Tu acceptes la décision du coach.'},
+      ()=>{gameState.ovr=Math.min(99,gameState.ovr+1);gameState.energy=Math.max(0,gameState.energy-30);return 'Tu progresses, mais tu es épuisé.'}
+    ]},
+    {title:'📰 Rumeur de transfert', desc:'Des journalistes annoncent que plusieurs clubs te veulent.', choices:['Laisser parler','Demander à ton agent de négocier','Publier un message'], run:[
+      ()=>{gameState.rep+=2;return 'Tu ne te laisses pas perturber.'},
+      ()=>{gameState.money+=20000;return 'Ton agent prépare déjà ton avenir. Bonus de négociation : $20 000.'},
+      ()=>{gameState.fans+=3000;gameState.rep+=1;return '+3 000 fans.'}
+    ]}
+  ];
+
+  function chooseOrigin(){
+    if(gameState.origin) return;
+    const answer = prompt('CHOISIS TON ORIGINE\\n\\n1. 🏙️ Quartier difficile\\n2. 🏡 Famille aisée\\n3. ⚽ Famille de footballeurs\\n4. 🎒 Famille modeste\\n\\nEntre 1, 2, 3 ou 4 :','1');
+    const o = ORIGINS[answer] || ORIGINS['4'];
+    gameState.origin=o.name;
+    gameState.ovr=Math.min(99,gameState.ovr+(o.ovr||0));
+    gameState.money+=(o.money||0);
+    gameState.rep+=(o.rep||0);
+    gameState.coach+=(o.coach||0);
+    gameState.history.unshift(`🧬 <b>ORIGINE :</b> ${o.name} — ${o.bonus}`);
+  }
+
+  const oldStartCollege = startCollege;
+  startCollege = function(){ oldStartCollege(); chooseOrigin(); updateUI(); };
+
+  playMonthEvent = function(){
+    if(gameState.isRetired || gameState.careerEnded) return alert('Ta carrière est terminée.');
+    if(gameState.monthEventDone) return alert('Tu as déjà vécu l’événement de ce mois. Passe au mois suivant.');
+    const pool = LIFE_EVENTS.filter(e=> !(e.title==='🏙️ Le passé revient' && gameState.origin!=='Quartier difficile'));
+    const e=pool[Math.floor(Math.random()*pool.length)];
+    document.getElementById('event-zone').style.display='block';
+    document.getElementById('event-title').innerText=e.title;
+    document.getElementById('event-desc').innerText=e.desc;
+    const box=document.getElementById('event-options'); box.innerHTML='';
+    e.choices.forEach((txt,i)=>{const b=document.createElement('button');b.className='opt-btn';b.innerText=txt;b.onclick=()=>{const result=e.run[i]();gameState.history.unshift(`🎲 <b>${e.title}</b> → ${result}`);gameState.monthEventDone=true;document.getElementById('event-zone').style.display='none';updateUI();if(gameState.careerEnded) endCareer();};box.appendChild(b);});
+  };
+
+  advanceMonth = function(){
+    if(gameState.isRetired || gameState.careerEnded) return alert('Ta carrière est terminée.');
+    gameState.month++;
+    gameState.monthEventDone=false;
+    gameState.energy=Math.min(100,gameState.energy+25);
+    gameState.injured=false;
+    if(gameState.month>12){
+      gameState.month=1; gameState.year++; gameState.age++; gameState.money+=2000000;
+      const won=gameState.ovr>=82 && Math.random()<0.22;
+      const mvp=gameState.ovr>=88 && Math.random()<0.15;
+      if(won) gameState.rings++; if(mvp) gameState.mvps++;
+      gameState.history.unshift(`📅 <b>FIN DE SAISON :</b> ${gameState.age} ans · ${won?'🏆 Super Bowl ! ':''}${mvp?'⭐ MVP ! ':''}`);
+      if(gameState.age>=36 || gameState.ovr<60) retire();
+    }
+    updateUI();
+  };
+
+  const oldUpdateUI=updateUI;
+  updateUI=function(){
+    oldUpdateUI();
+    const d=document.getElementById('display-team');
+    if(d && gameState.origin) d.innerText += ` | Origine : ${gameState.origin}`;
+    const desc=document.getElementById('calendar-desc');
+    if(desc && !gameState.careerEnded) desc.innerText=`Mois ${gameState.month}/12 · ${gameState.origin||'Origine inconnue'} · Événement : ${gameState.monthEventDone?'terminé':'à jouer'}`;
+  };
+
+  function endCareer(){
+    gameState.careerEnded=true;
+    const zone=document.getElementById('event-zone'); if(zone) zone.style.display='none';
+    alert(gameState.prison?'🚔 FIN DE CARRIÈRE\\nTu es en prison. Ton rêve NFL s’arrête ici.':'🚨 FIN DE CARRIÈRE\\nTes décisions ont mis fin à ton aventure professionnelle.');
+    updateUI();
+  }
+
+  updateUI();
+})();
+</script>
+'''
+          s = s.replace('</script></body></html>', injection + '</script></body></html>')
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "feat: expand monthly career events and life system" || echo "No changes to commit"
+          git push
